@@ -1,0 +1,54 @@
+version: '3.8'
+
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+  web:
+    build: .
+    command: sh -c "python manage.py migrate --noinput && gunicorn config.wsgi:application --bind 0.0.0.0:8000"
+    volumes:
+      - .:/code
+    ports:
+      - "8000:8000"
+    environment:
+      SECRET_KEY: ${SECRET_KEY}
+      DEBUG: ${DEBUG:-1}
+      DATABASE_URL: ${DATABASE_URL:-sqlite:///./db.sqlite3}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      FMP_API_KEY: ${FMP_API_KEY}
+      EMAIL_HOST_USER: ${EMAIL_HOST_USER}
+      EMAIL_HOST_PASSWORD: ${EMAIL_HOST_PASSWORD}
+      DEFAULT_FROM_EMAIL: ${DEFAULT_FROM_EMAIL}
+    depends_on:
+      - redis
+
+  celery_worker:
+    build: .
+    command: celery -A config worker --loglevel=info
+    volumes:
+      - .:/code
+    environment:
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      DATABASE_URL: ${DATABASE_URL:-sqlite:///./db.sqlite3}
+      FMP_API_KEY: ${FMP_API_KEY}
+    depends_on:
+      - redis
+
+  celery_beat:
+    build: .
+    command: celery -A config beat --loglevel=info --schedule=/app/celerybeat-schedule --pidfile=/app/celerybeat.pid
+    volumes:
+      - .:/code
+      - celery_beat_data:/app
+    environment:
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      DATABASE_URL: ${DATABASE_URL:-sqlite:///./db.sqlite3}
+      FMP_API_KEY: ${FMP_API_KEY}
+    depends_on:
+      - redis
+
+volumes:
+  celery_beat_data:

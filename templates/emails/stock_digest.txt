@@ -1,0 +1,34 @@
+================================================================================
+                         STOCK ALERT SYSTEM
+                    Professional Market Intelligence
+================================================================================
+
+Hello {{ user.first_name|default:user.username }},
+
+Here's your personalized stock price digest with the latest market updates.
+
+MARKET SUMMARY
+--------------
+• {{ stocks|length }} Stocks Tracked
+• Last Updated: {{ current_time|date:"M d, Y \a\\t g:i A T" }}
+• Data Refreshed Every Minute
+
+LATEST STOCK PRICES
+-------------------
+{% for stock in stocks %}
+📈 {{ stock.ticker|ljust:8 }} | {{ stock.name|truncatechars:30|ljust:32 }} | ${{ stock.price|default:"N/A"|rjust:10 }}
+{% endfor %}
+
+REPORT DETAILS
+--------------
+• Report Date: {{ current_time|date:"F d, Y" }}
+• Update Time: {{ current_time|date:"g:i A T" }}
+• Monitoring Status: Active
+• Next Update: In 3 minutes
+
+Thank you for trusting Stock Alert System for your market intelligence needs.
+
+================================================================================
+Stock Alert System - Professional Edition
+Report generated on {{ current_time|date:"F d, Y \a\\t g:i:s A T" }}
+================================================================================
