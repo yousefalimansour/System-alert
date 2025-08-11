@@ -1,12 +1,24 @@
-from django.urls import path
+from django.urls import path, include
+from rest_framework.routers import DefaultRouter
+from rest_framework_simplejwt.views import TokenRefreshView
 from . import views
-from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView, TokenVerifyView
+
+# Create router for ViewSets
+router = DefaultRouter()
+router.register(r'register', views.UserRegistrationViewSet, basename='user-register')
+router.register(r'login', views.UserLoginViewSet, basename='user-login')
+router.register(r'logout', views.UserLogoutViewSet, basename='user-logout')
+router.register(r'profile', views.UserProfileViewSet, basename='user-profile')
+router.register(r'change-password', views.ChangePasswordViewSet, basename='change-password')
+router.register(r'status', views.UserStatusViewSet, basename='user-status')
+
+app_name = 'users'
 
 urlpatterns = [
-    path('register/', views.UserRegistrationView.as_view(), name='registration'),
-    path('login/', views.UserLoginView.as_view(), name='login'),
-    path('logout/', views.UserLogoutView.as_view(), name='logout'),
-    path('token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
+    # ViewSet URLs
+    path('', include(router.urls)),
+    
+    # JWT Token refresh (using DRF SimpleJWT's built-in view)
     path('token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
-    path('token/verify/', TokenVerifyView.as_view(), name='token_verify'),
 ]
+

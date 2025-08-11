@@ -27,6 +27,8 @@ INSTALLED_APPS = [
     # third-party
     'rest_framework',
     'rest_framework_simplejwt',
+    'drf_spectacular',
+    'drf_spectacular_sidecar',
     'corsheaders',
     'django_celery_beat',
     # local apps
@@ -114,8 +116,62 @@ REST_FRAMEWORK = {
         'rest_framework.permissions.IsAuthenticated',
     ],
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
-    'PAGE_SIZE': 20
+    'PAGE_SIZE': 20,
+    'DEFAULT_RENDERER_CLASSES': [
+    'rest_framework.renderers.JSONRenderer',
+    'rest_framework.renderers.BrowsableAPIRenderer',
+    ],
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
 }
+
+# DRF Spectacular Configuration
+# DRF Spectacular Configuration
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'Stock Alert System API',
+    'DESCRIPTION': 'A comprehensive API for managing stock alerts and user authentication',
+    'VERSION': '1.0.0',
+    'SERVE_INCLUDE_SCHEMA': False,
+    
+    # Schema generation settings
+    'COMPONENT_SPLIT_REQUEST': True,
+    'COMPONENT_NO_READ_ONLY_REQUIRED': True,
+    
+    # API Documentation settings
+    'SWAGGER_UI_SETTINGS': {
+        'deepLinking': True,
+        'persistAuthorization': True,
+        'displayOperationId': True,
+        'filter': True,
+    },
+    
+    # Authentication settings for docs
+    'AUTHENTICATION_WHITELIST': [
+        'rest_framework.authentication.SessionAuthentication',
+        'rest_framework.authentication.TokenAuthentication',
+    ],
+    
+    # Custom schema preprocessing
+    'PREPROCESSING_HOOKS': [
+        'drf_spectacular.contrib.djangorestframework_camel_case.camelize_serializer_fields',
+    ] if 'djangorestframework_camel_case' in INSTALLED_APPS else [],
+    
+    # Tags configuration
+    'TAGS': [
+        {'name': 'Authentication', 'description': 'User authentication endpoints'},
+        {'name': 'User Profile', 'description': 'User profile management'},
+        {'name': 'Stocks', 'description': 'Stock management endpoints'},
+        {'name': 'Alerts', 'description': 'Stock alert management'},
+    ],
+    
+    # Schema extensions
+    'EXTENSIONS_INFO': {
+        'x-logo': {
+            'url': '/static/logo.png',
+            'altText': 'Stock Alert System'
+        }
+    },
+}
+
 
 # JWT Configuration
 SIMPLE_JWT = {
