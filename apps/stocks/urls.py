@@ -1,11 +1,10 @@
 from django.urls import path,include
-from rest_framework.routers import DefaultRouter
-from .views import StockViewSet ,PriceSnapshotViewSet 
+from .views import StockViewSet, PriceSnapshotViewSet
 
-router = DefaultRouter()
-router.register(r'stocks', StockViewSet,basename='stock')
-router.register(r'price_snapshots', PriceSnapshotViewSet,basename='snapshot')
 
 urlpatterns = [
-    path('', include(router.urls)),
+    path('', StockViewSet.as_view({'get': 'list', 'post': 'create'}), name='stock-list'),
+    path('<int:pk>/', StockViewSet.as_view({'get': 'retrieve', 'put': 'update', 'delete': 'destroy'}), name='stock-detail'),
+    path('price_snapshots/', PriceSnapshotViewSet.as_view({'get': 'list', 'post': 'create'}), name='snapshot-list'),
+    path('price_snapshots/<int:pk>/', PriceSnapshotViewSet.as_view({'get': 'retrieve', 'put': 'update', 'delete': 'destroy'}), name='snapshot-detail'),
 ]

@@ -1,11 +1,9 @@
-from django.urls import path, include
-from rest_framework.routers import DefaultRouter
-from .views import AlertViewSet,AlertTriggerViewSet
-
-router = DefaultRouter()
-router.register(r'alerts', AlertViewSet, basename='alert')
-router.register(r'alert-triggers', AlertTriggerViewSet, basename='alert-trigger')
+from django.urls import path
+from .views import AlertViewSet, AlertTriggerViewSet
 
 urlpatterns = [
-    path('', include(router.urls)),
+    path('', AlertViewSet.as_view({'get': 'list', 'post': 'create'}), name='alert-list'),
+    path('<int:pk>/', AlertViewSet.as_view({'get': 'retrieve', 'put': 'update', 'delete': 'destroy'}), name='alert-detail'),
+    path('triggers/', AlertTriggerViewSet.as_view({'get': 'list', 'post': 'create'}), name='alert-trigger-list'),
+    path('triggers/<int:pk>/', AlertTriggerViewSet.as_view({'get': 'retrieve', 'put': 'update', 'delete': 'destroy'}), name='alert-trigger-detail'),
 ]

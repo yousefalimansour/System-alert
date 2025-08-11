@@ -1,71 +1,30 @@
-### Register user
-POST http://127.0.0.1:8000/api/users/register/
+### Register a new user
+POST http://127.0.0.1:8000/api/auth/register/
 Content-Type: application/json
 
 {
-    "username": "yousef",
-    "email": "yousef@example.com",
-    "password": "123456"
+  "username": "yousef123",
+  "email": "yousef@example.com",
+  "first_name": "Yousef",
+  "last_name": "Ali",
+  "password": "StrongPass123!",
+  "password_confirm": "StrongPass123!"
 }
 
-### Obtain JWT tokens
-POST http://127.0.0.1:8000/api/users/login/
+###
+
+### Login
+POST http://127.0.0.1:8000/api/login/
 Content-Type: application/json
 
 {
-  "username": "yousef",
-  "password": "123456"
+  "username": "yousef123",
+  "password": "StrongPass123!"
 }
 
-### Refresh token
-POST http://127.0.0.1:8000/api/users/token/refresh/
-Content-Type: application/json
+###
 
-{
-  "refresh": "PUT_REFRESH_TOKEN_HERE"
-}
-
-### List stocks (public/read)
-GET http://127.0.0.1:8000/api/stocks/
-
-### Create stock (admin only)
-POST http://127.0.0.1:8000/api/stocks/
-Authorization: Bearer <ACCESS_TOKEN>
-Content-Type: application/json
-
-{
-  "symbol": "AAPL",
-  "name": "Apple Inc.",
-  "exchange": "NASDAQ"
-}
-
-### List alerts (auth user)
-GET http://127.0.0.1:8000/api/alerts/
-Authorization: Bearer <ACCESS_TOKEN>
-
-### Create alert (auth user)
-POST http://127.0.0.1:8000/api/alerts/
-Authorization: Bearer <ACCESS_TOKEN>
-Content-Type: application/json
-
-{
-  "stock": 1,
-  "comparator": "gt",
-  "threshold": "200.00",
-  "duration": null
-}
-
-### List alert logs (owner or staff)
-GET http://127.0.0.1:8000/api/alertlogs/
-Authorization: Bearer <ACCESS_TOKEN>
-
-### Create alert log (if API allows)
-POST http://127.0.0.1:8000/api/alertlogs/
-Authorization: Bearer <ACCESS_TOKEN>
-Content-Type: application/json
-
-{
-  "alert": 1,
-  "price_at_trigger": "210.00",
-  "message": "manual test"
-}
+### Get current user info (after login)
+GET http://127.0.0.1:8000/api/user/
+Authorization: Bearer {token}
+from

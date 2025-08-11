@@ -12,10 +12,10 @@ class AlertSerializer(serializers.ModelSerializer):
         model = Alert
         fields = (
             'id', 'user', 'stock', 'stock_details', 'name', 'alert_type', 'operator',
-            'threshold', 'duration_minutes', 'state_is_open', 'state_started_at',
+            'threshold', 'duration_minutes', 'state_is_open', 'state_started',
             'last_price', 'is_active', 'created_at', 'last_triggered_at'
         )
-        read_only_fields = ('user', 'state_is_open', 'state_started_at', 'last_price', 'created_at', 'last_triggered_at')
+        read_only_fields = ('user', 'state_is_open', 'state_started', 'last_price', 'created_at', 'last_triggered_at')
 
     def validate(self, data):
         alert_type = data.get('alert_type')
