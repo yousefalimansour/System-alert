@@ -153,7 +153,7 @@ class UserStatusSerializer(serializers.Serializer):
     """
     Serializer for user status information
     """
-    user_id = serializers.IntegerField(read_only=True)
+    id = serializers.IntegerField(read_only=True)
     username = serializers.CharField(read_only=True)
     is_authenticated = serializers.BooleanField(read_only=True)
     is_active = serializers.BooleanField(read_only=True)

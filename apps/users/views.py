@@ -1,11 +1,13 @@
 from rest_framework import status, viewsets, permissions
+from django.shortcuts import get_object_or_404
+
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView
 from django.contrib.auth import authenticate
 from django.contrib.auth.models import User
-from drf_spectacular.utils import extend_schema, extend_schema_view
+from drf_spectacular.utils import extend_schema, extend_schema_view, OpenApiParameter, OpenApiTypes
 from .serializers import (
     UserRegistrationSerializer,
     UserLoginSerializer,
@@ -14,7 +16,10 @@ from .serializers import (
     UserStatusSerializer,
     LogoutSerializer
 )
+from django.contrib.auth import get_user_model
 
+
+User = get_user_model()
 
 @extend_schema_view(
     create=extend_schema(
@@ -151,31 +156,44 @@ class UserLogoutViewSet(viewsets.GenericViewSet):
 )
 class UserProfileViewSet(viewsets.GenericViewSet):
     """
-    ViewSet for user profile management
+    ViewSet for user profile management:
+    - GET  /api/users/profile/me/    -> retrieve current user
+    - PATCH /api/users/profile/me/   -> partial update current user
     """
     serializer_class = UserProfileSerializer
     permission_classes = [permissions.IsAuthenticated]
-    
+
     def get_object(self):
+        # used by serializer.save() when calling .save() without passing instance
         return self.request.user
-    
-    def retrieve(self, request):
-        """Get user profile"""
+
+    @extend_schema(
+        summary="Get user profile",
+        description="Retrieve authenticated user's profile",
+        responses={200: UserProfileSerializer}
+    )
+    @action(detail=False, methods=['get'], url_path='me')
+    def me(self, request):
         serializer = self.get_serializer(request.user)
         return Response(serializer.data, status=status.HTTP_200_OK)
-    
-    def partial_update(self, request):
-        """Update user profile"""
+
+    @extend_schema(
+        summary="Update user profile",
+        description="Update authenticated user's profile information",
+        request=UserProfileSerializer,
+        responses={200: UserProfileSerializer}
+    )
+    @action(detail=False, methods=['patch'], url_path='me')
+    def partial_update_me(self, request):
         serializer = self.get_serializer(
-            request.user, 
-            data=request.data, 
+            request.user,
+            data=request.data,
             partial=True
         )
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data, status=status.HTTP_200_OK)
-        
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
 
 
 @extend_schema_view(
@@ -219,30 +237,58 @@ class ChangePasswordViewSet(viewsets.GenericViewSet):
 
 @extend_schema_view(
     list=extend_schema(
-        summary="Get user status",
-        description="Get current user status and basic information",
-        responses={200: UserStatusSerializer}
-    )
+        summary="Get current user status",
+        description="Return the authenticated user's status (reads only the fields defined in the serializer).",
+        responses={200: "UserStatusSerializer"},
+    ),
+    retrieve=extend_schema(
+        summary="Get user status by id",
+        description="Retrieve a user's status by id. Non-staff users can only retrieve their own status.",
+        parameters=[
+            OpenApiParameter(name="id", type=OpenApiTypes.INT, location=OpenApiParameter.PATH)
+        ],
+        responses={200: "UserStatusSerializer"},
+    ),
 )
 class UserStatusViewSet(viewsets.ReadOnlyModelViewSet):
     """
-    ViewSet for user status information
+    ReadOnly viewset that returns only the fields defined in UserStatusSerializer.
+    - list -> returns current authenticated user
+    - retrieve -> return a user by id (only self or staff)
     """
     serializer_class = UserStatusSerializer
     permission_classes = [permissions.IsAuthenticated]
-    
+    http_method_names = ['get']
+
+    queryset = User.objects.all()
+    lookup_field = "id"  
+
     def get_queryset(self):
-        return User.objects.filter(id=self.request.user.id)
-    
-    def list(self, request):
-        """Get current user status"""
-        data = {
-            'user_id': request.user.id,
-            'username': request.user.username,
-            'is_authenticated': True,
-            'is_active': request.user.is_active,
-            'date_joined': request.user.date_joined,
-            'last_login': request.user.last_login,
-        }
-        serializer = self.get_serializer(data)
+        """
+        Keep a permissive queryset for schema generation, but restrict in runtime:
+        - for list: only the current user
+        - for retrieve: leave queryset as-is (we'll check permission in retrieve)
+        """
+        if self.action == "list":
+            return self.queryset.filter(id=self.request.user.id)
+        return self.queryset
+
+    def list(self, request, *args, **kwargs):
+        """Return the authenticated user's status using the serializer instance (not dict)."""
+        serializer = self.get_serializer(request.user)  # pass instance
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    def retrieve(self, request, id: int = None, *args, **kwargs):
+        """
+        Retrieve by id. Only allow if:
+          - requested id == request.user.id  OR
+          - request.user.is_staff
+        """
+        user = get_object_or_404(self.queryset, id=id)
+
+        if user.id != request.user.id and not request.user.is_staff:
+            return Response({"detail": "You do not have permission to perform this action."},
+                            status=status.HTTP_403_FORBIDDEN)
+
+        serializer = self.get_serializer(user)  
         return Response(serializer.data, status=status.HTTP_200_OK)
