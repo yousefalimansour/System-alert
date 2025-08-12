@@ -172,5 +172,6 @@ class TokenRefreshResponseSerializer(serializers.Serializer):
 class LogoutSerializer(serializers.Serializer):
     """
     Serializer for logout request
-    """
+   
+     """
     pass

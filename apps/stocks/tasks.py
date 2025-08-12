@@ -1,3 +1,4 @@
+# apps/stocks/tasks.py
 from decimal import Decimal
 from celery import shared_task
 from django.conf import settings
@@ -28,7 +29,7 @@ def fetch_stock_prices(self):
     client_timeout = httpx.Timeout(10.0, read=10.0)
     
     for stock in stocks:
-        logger.info(f"Processing stock: {stock.ticker}")
+        logger.info(f"Processing stock: {stock.ticker} (id={stock.id})")
         price = None
         try:
             if apikey:
@@ -39,40 +40,44 @@ def fetch_stock_prices(self):
                     data = response.json()
                     if isinstance(data, list) and len(data) > 0 and 'price' in data[0]:
                         price = Decimal(str(data[0]['price']))
+                    else:
+                        logger.warning(f"No price in response for {stock.ticker}: {data}")
             else:
                 # mock price when API key is not available
-                price = Decimal(str(random.uniform(10, 1000)))
+                price = Decimal(str(round(random.uniform(10, 1000), 2)))
                 logger.info(f"Using mock price for {stock.ticker}: {price}")
         except Exception as e:
-            logger.error(f"Error fetching price for {stock.ticker}: {str(e)}")
+            logger.exception(f"Error fetching price for {stock.ticker}")
             result.append({"ticker": stock.ticker, "error": str(e)})
             continue
 
         if price is not None:
-            snap = PriceSnapshot.objects.create(
-                stock=stock,
-                price=price,
-                timestamp=timezone.now()
-            )
-            logger.info(f"Created price snapshot for {stock.ticker}: {price}")
-            result.append({"ticker": stock.ticker, "price": str(price)})
-            
-            # Evaluate alerts for this stock
             try:
-                evaluate_alerts_for_stock(stock)
-                logger.info(f"Evaluated alerts for {stock.ticker}")
-            except Exception as e:
-                logger.error(f"Error evaluating alerts for {stock.ticker}: {str(e)}")
+                snap = PriceSnapshot.objects.create(
+                    stock=stock,
+                    price=price,
+                    timestamp=timezone.now()
+                )
+                logger.info(f"Created price snapshot for {stock.ticker}: {price}")
+                result.append({"ticker": stock.ticker, "price": str(price)})
+
+                # Evaluate alerts for this stock — pass stock.id (int)
+                try:
+                    evaluate_alerts_for_stock(stock.id)
+                    logger.info(f"Evaluated alerts for {stock.ticker}")
+                except Exception:
+                    logger.exception(f"Error evaluating alerts for {stock.ticker}")
+            except Exception:
+                logger.exception(f"Error saving snapshot for {stock.ticker}")
+                result.append({"ticker": stock.ticker, "error": "db_save_error"})
         else:
             result.append({"ticker": stock.ticker, "skipped": True})
 
     logger.info(f"=== FETCH_STOCK_PRICES TASK COMPLETED. Processed {len(result)} stocks ===")
     return {"fetched": result}
 
+
 def generate_stock_digest_html(username, stock_data):
-    """Generate HTML template for stock digest email"""
-    
-    # Generate stock rows HTML
     stock_rows = ""
     for stock in stock_data:
         price_display = f"${stock['price']}" if stock['price'] != 'N/A' else 'N/A'
@@ -86,107 +91,47 @@ def generate_stock_digest_html(username, stock_data):
             </td>
         </tr>
         """
-    
+
     html_template = f"""
     <!DOCTYPE html>
     <html lang="en">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Daily Stock Digest</title>
-    </head>
-    <body style="margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f8f9fa;">
-        <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-            
-            <!-- Header -->
-            <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; text-align: center;">
-                <h1 style="color: #ffffff; margin: 0; font-size: 28px; font-weight: 300; letter-spacing: 1px;">
-                    📈 Daily Stock Digest
-                </h1>
-                <p style="color: #e8f1ff; margin: 10px 0 0 0; font-size: 16px;">
-                    {timezone.now().strftime('%B %d, %Y')}
-                </p>
-            </div>
-            
-            <!-- Greeting -->
-            <div style="padding: 30px 30px 20px 30px;">
-                <p style="color: #2c3e50; font-size: 18px; margin: 0; line-height: 1.5;">
-                    Hello <strong>{username}</strong>,
-                </p>
-                <p style="color: #7f8c8d; font-size: 16px; margin: 15px 0 0 0; line-height: 1.6;">
-                    Here are the latest stock prices from your watchlist:
-                </p>
-            </div>
-            
-            <!-- Stock Table -->
-            <div style="padding: 0 30px 30px 30px;">
-                <table style="width: 100%; border-collapse: collapse; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
-                    <thead>
-                        <tr style="background-color: #34495e;">
-                            <th style="padding: 16px; text-align: left; color: #ffffff; font-weight: 600; font-size: 16px; letter-spacing: 0.5px;">
-                                Stock Symbol
-                            </th>
-                            <th style="padding: 16px; text-align: right; color: #ffffff; font-weight: 600; font-size: 16px; letter-spacing: 0.5px;">
-                                Current Price
-                            </th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {stock_rows}
-                    </tbody>
-                </table>
-            </div>
-            
-            <!-- Footer -->
-            <div style="background-color: #ecf0f1; padding: 25px 30px; text-align: center; border-top: 3px solid #3498db;">
-                <p style="color: #7f8c8d; font-size: 14px; margin: 0; line-height: 1.5;">
-                    Best regards,<br>
-                    <strong style="color: #2c3e50;">Stock Alerting System</strong>
-                </p>
-                <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #bdc3c7;">
-                    <p style="color: #95a5a6; font-size: 12px; margin: 0;">
-                        This is an automated message. Please do not reply to this email.
-                    </p>
-                </div>
-            </div>
-            
-        </div>
-    </body>
-    </html>
+    <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Daily Stock Digest</title></head>
+    <body style="font-family: Arial, sans-serif; background:#f8f9fa; margin:0; padding:20px;">
+    <div style="max-width:600px; margin:0 auto; background:#fff; padding:0; border-radius:6px; overflow:hidden;">
+      <div style="background:#34495e; padding:20px; color:#fff; text-align:center;">
+        <h2 style="margin:0;">Daily Stock Digest</h2>
+        <p style="margin:0;">{timezone.now().strftime('%B %d, %Y')}</p>
+      </div>
+      <div style="padding:20px;">
+        <p>Hello <strong>{username}</strong>,</p>
+        <p>Here are the latest stock prices from your watchlist:</p>
+        <table style="width:100%; border-collapse:collapse;">
+          <thead><tr style="background:#2c3e50; color:#fff;">
+            <th style="text-align:left; padding:10px;">Stock Symbol</th>
+            <th style="text-align:right; padding:10px;">Current Price</th>
+          </tr></thead>
+          <tbody>
+            {stock_rows}
+          </tbody>
+        </table>
+        <p style="margin-top:20px;">Best regards,<br>Stock Alerting System</p>
+      </div>
+    </div>
+    </body></html>
     """
-    
     return html_template
 
+
 def generate_stock_digest_text(username, stock_data):
-    """Generate plain text version for stock digest email"""
-    
-    text_content = f"""Hello {username},
-
-Here are the latest stock prices from your watchlist:
-
-"""
-    
-    # Add stock data
-    text_content += "STOCK PRICES\n"
-    text_content += "=" * 50 + "\n"
-    
+    text_content = f"Hello {username},\n\nHere are the latest stock prices from your watchlist:\n\n"
+    text_content += "========================================\n"
     for stock in stock_data:
         price_display = f"${stock['price']}" if stock['price'] != 'N/A' else 'N/A'
         text_content += f"{stock['ticker']:10} : {price_display}\n"
-    
-    text_content += "\n" + "=" * 50
-    text_content += f"""
-
-Report generated on: {timezone.now().strftime('%B %d, %Y at %I:%M %p')}
-
-Best regards,
-Stock Alerting System
-
----
-This is an automated message. Please do not reply to this email.
-    """
-    
+    text_content += "\nReport generated on: " + timezone.now().strftime('%B %d, %Y at %I:%M %p') + "\n\nBest regards,\nStock Alerting System\n"
     return text_content
+
 
 @shared_task(bind=True, ignore_result=True)
 def send_price_digest(self):
@@ -207,7 +152,7 @@ def send_price_digest(self):
     stock_data = []
     for stock in stocks:
         snap = stock.snapshots.first()
-        price = snap.price if snap else 'N/A'
+        price = str(snap.price) if snap else 'N/A'
         stock_data.append({'ticker': stock.ticker, 'price': price})
         logger.info(f"Stock {stock.ticker}: {price}")
 
@@ -218,17 +163,13 @@ def send_price_digest(self):
         logger.info(f"Preparing email for user: {user.username} ({user.email})")
         
         try:
-            # Generate email content
             subject = "Daily Stock Price Digest"
             html_content = generate_stock_digest_html(user.username, stock_data)
             text_content = generate_stock_digest_text(user.username, stock_data)
             
             logger.info(f"Attempting to send email to {user.email}")
             logger.info(f"Email settings - FROM: {settings.DEFAULT_FROM_EMAIL}")
-            logger.info(f"Email settings - HOST: {settings.EMAIL_HOST}")
-            logger.info(f"Email settings - HOST_USER: {settings.EMAIL_HOST_USER}")
             
-            # Create email with both HTML and text versions
             email = EmailMultiAlternatives(
                 subject=subject,
                 body=text_content,
@@ -236,13 +177,16 @@ def send_price_digest(self):
                 to=[user.email]
             )
             email.attach_alternative(html_content, "text/html")
-            email.send()
+            send_result = email.send()
+            logger.info(f"Email send result for {user.email}: {send_result}")
+            if send_result:
+                emails_sent += 1
+            else:
+                emails_failed += 1
+                logger.error(f"EmailBackend reported failure sending to {user.email}")
             
-            logger.info(f"✅ Email sent successfully to {user.email}")
-            emails_sent += 1
-            
-        except Exception as exc:
-            logger.error(f"❌ Email send failed for {user.email}: {str(exc)}")
+        except Exception:
+            logger.exception(f"❌ Email send failed for {user.email}")
             emails_failed += 1
 
     logger.info(f"=== SEND_PRICE_DIGEST TASK COMPLETED. Sent: {emails_sent}, Failed: {emails_failed} ===")

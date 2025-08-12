@@ -6,12 +6,11 @@ from .models import Alert ,AlertTrigger
 
 class AlertSerializer(serializers.ModelSerializer):
     stock = serializers.PrimaryKeyRelatedField(queryset=Stock.objects.all())
-    stock_details = StockSerializer(source='stock', read_only=True)
 
     class Meta:
         model = Alert
         fields = (
-            'id', 'user', 'stock', 'stock_details', 'name', 'alert_type', 'operator',
+            'id', 'user', 'stock', 'name', 'alert_type', 'operator',
             'threshold', 'duration_minutes', 'state_is_open', 'state_started',
             'last_price', 'is_active', 'created_at', 'last_triggered_at'
         )
@@ -19,7 +18,7 @@ class AlertSerializer(serializers.ModelSerializer):
 
     def validate(self, data):
         alert_type = data.get('alert_type')
-        duration = data.get('duration')
+        duration = data.get('duration_minutes')
         threshold = data.get('threshold')
 
         if alert_type == 'threshold' and (threshold is None or duration is None):
@@ -31,7 +30,7 @@ class AlertSerializer(serializers.ModelSerializer):
 
 
 class AlertTriggerSerializer(serializers.ModelSerializer):
-    alert = serializers.PrimaryKeyRelatedField(read_only=True)
+    alert = serializers.PrimaryKeyRelatedField(queryset=Alert.objects.all())
     class Meta:
         model = AlertTrigger
         fields = (
